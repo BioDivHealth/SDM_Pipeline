@@ -15,10 +15,18 @@ This repository includes the Auto_maxent function which is designed to run [MaxE
 - `crs.r`: coordinate reference system (crs) for the points (presence records and background points) as well as for the environmental variables and study area. To speed up the analysis is recommended to set up this parameter beforehand, making sure that all the spatial information is compatible. See the `resample.rast()` function for details about spatial data harmonization. By default this parameter is set to `EPSG:4326` which returns the WGS-84 crs, this is the default crs of Gbif data and helps to transform this information into spatial data.
 - `buff_lim`: the buffer, in map/crs units, to draw around the study area. By default this parameter is set to `0`, therefore no buffer is drawn. 
 - `n_bk`: Number of background points to sample from the study area. If set to `AUTO`, the number of background points is defined by the product of the number of cells of the environmental `SpatRaster` and `prop_env`. 
-- `prop_env`: Proportion of cells to sample when `n_bk` is set ot `AUTO`. Default value if `0.25`, therefore the number of background points is equal to a quarter of the total number of cells in our environmental variables.
-- `type_bk`: 
-- `Test_n`:
-- `world_pol`:
-- `time_macth`:
-- `select_var`:
-### 
+- `prop_env`: Proportion of cells to sample when `n_bk` is set to `AUTO`. The default value is `0.25`, therefore the number of background points is equal to a quarter of the total number of cells in our environmental variables.
+- `type_bk`: `[Random,BwData,BwData_inv,EnvBK]` Type of background sampling: Random = points are drawn at random from the study area; BwData = points are sampled from the study area based on a [density kernel of the presence data](put reference here); BwData_inv = points are sampled based on the inverse density kernel of the presence data; EnvBK = points are sampled based on a [density kernel build using the first two Principal Components of a PCA build with the environmental data](ref here). 
+- `Test_n`: Proportion of points used for model testing. Default the 30% of presence points are used for model testing and model performance evaluation.
+- `world_pol`: An `sf` object to refine the study area (e.g. remove unsuitable areas or marine regions). It helps to keep the background points within specific spatial limits.
+- `time_macth`: Should we try to coordinate our spatial data spatiotemporal? Right now this is not implemented (the function would return a message).
+- `select_var`: 
+![Data Preparation]()
+### MaxEnt modelling
+- `random_features`:
+- `beta.val`:
+- `n.m`:
+- `Mod.route`:
+![modelling]()
+### Return options
+- `return.all`:
