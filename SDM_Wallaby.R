@@ -224,6 +224,25 @@ names(avg.mods) <- c("Env","InvPres","Pres","Random") # names
 panel(avg.mods,col=col_fun(100))
 
 # 7. Predict Wallabi distribution in the UK ----
+# We need to collect the environmental data for the UK
+# We want this to be relatively fast, so lets take the 10sqkm resolution
+bio_clim <- "./Data/Environmental variables/UK/BioClim" ; dir.create(bio_clim,recursive = TRUE,showWarnings = FALSE)
+geodata::worldclim_country(country = "GBR",res=0.5,path=bio_clim,var="bio")
+
+Lu_route<-"./Data/Environmental variables/UK/Land_use" ; dir.create(Lu_route,recursive = TRUE,showWarnings = FALSE)
+Lu_vars<-c("trees", "grassland", "shrubs", "cropland", "built", "bare", "snow", "water", "wetland", "mangroves", "moss")
+lapply(Lu_vars,function(x) geodata::landcover(var=x,path=Lu_route))
+
+# Harmonize the spatial data
+env_vars <-  "./Data/Environmental variables/UK" %>% list.files(pattern = ".tif",recursive=TRUE,full.names = TRUE)
+resample.rast(y=env_vars,results.r = env_vars)
+
+
+
+
+
+
+
 
 
 
