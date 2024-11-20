@@ -235,7 +235,7 @@ lapply(Lu_vars,function(x) geodata::landcover(var=x,path=Lu_route))
 
 # Harmonize the spatial data
 env_vars <-  "./Data/Environmental variables/UK" %>% list.files(pattern = ".tif",recursive=TRUE,full.names = TRUE)
-resample.rast(y=env_vars,results.r = env_vars)
+resample.rast(y=env_vars,results.r = "./Data/Environmental variables/UK")
 
 
 
