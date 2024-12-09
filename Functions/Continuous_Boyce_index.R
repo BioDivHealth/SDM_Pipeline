@@ -6,23 +6,26 @@
 #
 #
  
-boyce_index<-function (obs = NULL, pred = NULL, n.bins = NA, 
-                        res = 100,plot = TRUE,na.rm = TRUE, ...)
+boyce_index<-function (obs = NULL, pred = NULL, n.bins = NA,plot.b=F, 
+                        res = 50,plot = TRUE,na.rm = TRUE, ...)
   {
 
+  
   # Extract the predicted values from the raster and the observations
-    p.obs <- terra::extract(pred, obs) %>% unlist() %>% unname() ; p.obs<-na.omit(p.obs)
+    p.obs <- terra::extract(pred, obs,cells=T) ; p.obs <- p.obs[!duplicated(p.obs$cell),-1]
+    p.obs %>% unlist() %>% unname() ; p.obs<-na.omit(p.obs)
+    
     fit <- na.omit(terra::values(pred))
 
-  
-  boycei <- function(interval, p.obs, fit) {
+  # Functino to extract the parameters of for the boyce calculation
+    boycei <- function(interval, p.obs, fit){
                       pi <- sum(as.numeric(p.obs >= interval[1] & p.obs <= interval[2]))/length(p.obs) # Proportion of predicted presences
                       ni <- sum(as.numeric(fit >= interval[1] & fit <= interval[2])) # Number of cells
                       ei <- ni/length(fit) # Expected presences if random
                       return(rbind(bin.N = ni, predicted = pi, expected = ei, 
                                    boycei = round(pi/ei, 10) # Proportion of predicted and expected
-                                   ))
-                    }
+                      ))
+                      }
   
   # Range of values for the intervals and bin widths
   mini <- min(fit, p.obs,na.rm=TRUE)
@@ -49,7 +52,8 @@ boyce_index<-function (obs = NULL, pred = NULL, n.bins = NA,
     b <- NA
   } else {
     r <- 1:length(f)
-    b <- cor(f[r], vec.mov[to.keep][r], method = "spearman")
+    j <- vec.mov[to.keep][r]
+    b <- cor(f[r], j, method = "spearman")
   }
   
   HS <- apply(interval, 1, sum)/2 # median for each interval
@@ -59,7 +63,14 @@ boyce_index<-function (obs = NULL, pred = NULL, n.bins = NA,
   }
   
   HS <- HS[to.keep]
- 
+  
+  if(plot.b==TRUE & !is.na(b)){
+    plot(HS,f, ylim = c(0, max(f, na.rm = TRUE)),bty="n", 
+         xlab = "Prediction class", ylab = "Predicted / expected ratio", cex = 0.5,pch=19,col="black")
+  
+    lines(HS[r], f[r])
+    }
+
   #
   return(list(bins = data.frame(bin.N = boycei.result[to.keep,1],
                                 bin.min = interval[to.keep, 1],
