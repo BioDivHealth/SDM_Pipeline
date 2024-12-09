@@ -8,8 +8,9 @@ resample.rast<-function(x,# Reference raster (should be a spatrast object or mat
                         cores=2,      # If paralell==TRUE, how many cores do you want to commit? default==2
                         route.r= NULL, # route to save the temporal re-sampled layers, by default it would create a temporal folder in the working environment with the name of r_resample
                         results.r=NULL, # Route to save the results, by default it create a ResultsRast folder in the working environment
-                        mask_r=NULL # polygon to use as mask, only if mask=TRUE,Should the final rasters need to be masked? default FALSE if TRUE a wrld_simpl dataset is usded to mask the rasters
-){
+                        mask_r=NULL, # polygon to use as mask, only if mask=TRUE,Should the final rasters need to be masked? default FALSE if TRUE a wrld_simpl dataset is usded to mask the rasters
+                        rm.temp=TRUE
+                        ){
   
   # Load the required libraries to run the function
   # a. Load the packages needed----
@@ -33,12 +34,12 @@ resample.rast<-function(x,# Reference raster (should be a spatrast object or mat
   if(!dir.exists(Tmp_dir)){dir.create(Tmp_dir)}
     
   # b. Reference raster, loaded or create it----
-  if(missing(x)){
+  if(missing(x)|is.null(x)){
     if(TRUE %in% lapply(list(crs.r,ex,crs.r),is.null)){
       print("Missing key components to build the reference raster, sampling the layers to select the best fit!")
     
     # CRS ----
-    # a. Are the CRS of the layers the same?
+     # a. Are the CRS of the layers the same?
       if(length(lapply(y,function(x) check_layers(x,return.var="crs")) %>% unlist() %>% unique())!=1){
         
         # Select the most frequent crs
@@ -56,40 +57,62 @@ resample.rast<-function(x,# Reference raster (should be a spatrast object or mat
         
         # substitude the new adapted layer in the env_var list
         y[!lyr_index]<-list.files("./Data/temp_files",pattern=".tif$",full.names = TRUE)
-      }
+        
+        crs_check <- FALSE
+        
+      }else{
+        crs_check <- TRUE
+        }
       
       # Which is the CRS of the environmental layers?
        new_crs <- lapply(y,function(x) check_layers(x,return.var="crs")) %>% unlist() %>% unique()
       
-    
     # Extension----
     # b. Check the extend and resolution of the environmental variables
     # Which is the lower extend and resolution?
     ext_env <- lapply(y,function(x) check_layers(x,return.var="ext") %>% as.vector())# %>% unlist()
     rast_exted_names <- ext_env[[1]] %>% names()
     
-    # Each element of ext_env represent the bounding box of the different environmental variables, we are going to choose a extension in which all variables
-    # intersects
-    pol_ext <- lapply(ext_env,poly_from_ext,crs_p=new_crs) # transform the extension into sf objecs
-    pol_ext <- do.call(c,pol_ext) # combine the spatial features 
+    # Are all extensions de same
+    if(length(unique(ext_env))<=1){
+      new_ext <- unique(ext_env) %>% unlist()
+      ext_check <- TRUE
     
-    # Select the area in which the maximun number of env_layers overlap
-    sf_ext <- st_sf(pol_ext)
-    i_ext <- st_intersection(sf_ext) ; i_ext <- i_ext %>% filter(n.overlaps==max(i_ext$n.overlaps)) 
-    
-    new_ext <- st_bbox(i_ext) #; new_ext <- new_ext[rast_exted_names]     
-    # env_vars_index <- i_ext$origins
+    }else{
+      # Each element of ext_env represent the bounding box of the different environmental variables, we are going to choose a extension in which all variables
+      # intersects
+      pol_ext <- lapply(ext_env,poly_from_ext,crs_p=new_crs) # transform the extension into sf objecs
+      pol_ext <- do.call(c,pol_ext) # combine the spatial features 
+      
+      # Select the area in which the maximun number of env_layers overlap
+      sf_ext <- st_sf(pol_ext)
+      i_ext <- st_intersection(sf_ext) ; i_ext <- i_ext %>% filter(n.overlaps==max(i_ext$n.overlaps)) 
+      
+      new_ext <- st_bbox(i_ext) #; new_ext <- new_ext[rast_exted_names]     
+      # env_vars_index <- i_ext$origins
+      
+      ext_check <- FALSE
+    }
     
     # Select the resolution
-    res_env <- lapply(y,function(x) check_layers(x,return.var="res") %>% as.vector())
-    new_res <- res_env %>% unlist() %>% max(na.rm=TRUE)
+    res_env <- lapply(y,function(x) check_layers(x,return.var="res")[1] %>% as.vector()) %>% unlist()
     
+    if(length(unique(res_env))<=1){
+      new_res <- unique(res_env) %>% unlist()
+      res_check <- TRUE
+      
+      }else{
+      new_res <- res_env %>% unlist() %>% max(na.rm=TRUE)
+      res_check <- FALSE
+    }
+
     # Save the new_raster parameters
     env_params <- list(crs=new_crs,extent=new_ext,resolution=new_res)
     # env_vars_index
   }else{
     env_params <- list(crs=crs.r,extent=ex,resolution=res)
     }
+    
     # Create a reference raster
     ref.rast <- rast(extent=env_params$extent,resolution=env_params$resolution,crs=env_params$crs)
     
@@ -111,6 +134,12 @@ resample.rast<-function(x,# Reference raster (should be a spatrast object or mat
     }
   
     # d. Resample the layers----
+    # If all parameters are the same, combine layers but skip resampling 
+  if(all(c(res_check,ext_check,crs_check))){
+    print("Layers are compatible, no need for resampling!")
+    return(NA)
+      
+  }else{
     # d.1 If paralell processing is set to true and the number of layers is greater than 1
     if(length(y)>1 & paralell==TRUE){
       
@@ -183,11 +212,14 @@ resample.rast<-function(x,# Reference raster (should be a spatrast object or mat
                        filename=paste(Resdir,paste0("Resample_rast.tif"),sep="/"),
                        names=basename(f.r %>% gsub(pattern = ".tif$",replacement ="")),
                        overwrite=TRUE) # Export the full results as a stack of layers
+    if(rm.temp==TRUE){
+      unlink(Tdir,recursive = TRUE)
+      unlink(Tmp_dir,recursive = TRUE)
+      }
     
-    unlink(Tdir,recursive = TRUE)
-    unlink(Tmp_dir,recursive = TRUE)
     print("ALL DONE!")
     return(list(layers=basename(f.r %>% gsub(pattern = ".tif$",replacement ="")),parameters=env_params)) # these are the names of the layers
+    }  
   }
   
   
