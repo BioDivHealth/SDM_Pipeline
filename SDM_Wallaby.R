@@ -82,11 +82,13 @@ Lu_vars<-c("trees", "grassland", "shrubs", "cropland", "built", "bare", "snow", 
 lapply(Lu_vars,function(x) geodata::landcover(var=x,path=Lu_route))
 
 # 3.3 Load the raster information and harmonize the data ----
-env_vars <-  "./Data/Environmental variables" %>% list.files(pattern = ".tif",recursive=TRUE,full.names = TRUE)
-resample.rast(y=env_vars)
+env_vars <-  c(bio_clim %>% list.files(pattern = ".tif",recursive=TRUE,full.names = TRUE),
+               Lu_route %>% list.files(pattern = ".tif",recursive=TRUE,full.names = TRUE))
+
+resample.rast(y=env_vars,results.r="./Data/Environmental variables/study_area") # adapt and export the data
 
 # 3.3.1 Load the resampled environmental layer
-env_vars <- "./ResultsRast" %>% list.files(pattern=".tif",full.names = TRUE,recursive = TRUE) %>% rast()
+env_vars <- "./Data/Environmental variables/study_area" %>% list.files(pattern=".tif",full.names = TRUE,recursive = TRUE) %>% rast()
 
 # 3.3.a Display the spatial information----
 #~~~~~~~~~~~~~~~~
@@ -127,17 +129,35 @@ dev.off()
 # 4.1 Test different parameters for the models ----
 models_r <- "Results/Models" ; models_r %>% dir.create(recursive=TRUE,showWarnings = FALSE)
 
+# Selection of the background sample size:
+# The number of background points can have a huge impact on how MaxEnt performs, we wanto to have a sample of points that is
+# representative of the environmental data, but we also want to keep the number of samples we take to a minimun in order to 
+# optimize the running time of the algorithm
+#
+  plot(env_vars)
+  
+# Since we have the range of the species we can reduce a bit more the environmental information in order to speed up a bit the
+# bk sampling
+  red_env_vars <- env_vars %>% crop(rX %>% vect())
+  ind <- !names(red_env_vars) %in% c("snow","moss")
+
+# Test the number of background sampling
+  # m_vars <- red_env_vars[[names(red_env_vars)[ind]]] %>% as.data.frame()
+  # m_vars <- m_vars[complete.cases(m_vars),]
+  # 
+  # background.sample <- b_sample(x=m_vars[,c(1:5)], min = 20, max=nrow(op)*3,breaks.r = 100, plot.l = T)
+  # n_bk <- background.sample$sample.size.bk
+
 # 4.1.a Random background sampling----
-r.maxent <- Auto_maxent(presence_dat=op, predictors=env_vars, min_obs = 1000,
+r.maxent <- Auto_maxent(presence_dat=op, 
+                        predictors=env_vars, 
                         rm.dp = TRUE, 
-                        name.mod = "Wallabi_random", 
+                        name.mod = "Wallabi_Press", 
                         type_bk = "Random", #[Random,BwData,BwData_inv,EnvBK]
-                        world_pol = co_pol, 
-                        select_var = "NUMERICAL", 
+                        world_pol = co_pol, select_var = "NUMERICAL", 
                         sp_range=rX,
-                        random_features = FALSE,
-                        beta.val = 7,
-                        n_bk = 30000,
+                        random_features = FALSE, beta.val = 7, 
+                        n_bk = 10000,
                         # Model Selection
                         mod.select = TRUE, n.mods = 5, use.boyce = 0.5
                         )
@@ -156,7 +176,7 @@ pres.maxent <- Auto_maxent(presence_dat=op, predictors=env_vars, min_obs = 1000,
                            world_pol = co_pol, select_var = "NUMERICAL", 
                            sp_range=rX,
                            random_features = FALSE, beta.val = 7, 
-                           n_bk = 30000,
+                           n_bk = 10000,
                            # Model Selection
                            mod.select = TRUE, n.mods = 5, use.boyce = 0.5
                             )
@@ -175,7 +195,7 @@ pres.inv.maxent <- Auto_maxent(presence_dat=op, predictors=env_vars, min_obs = 1
                            world_pol = co_pol, select_var = "NUMERICAL", 
                            sp_range=rX,
                            random_features = FALSE, beta.val = 7, 
-                           n_bk = 30000,
+                           n_bk = 10000,
                            # Model Selection
                            mod.select = TRUE, n.mods = 5, use.boyce = 0.5
                             )
@@ -191,10 +211,10 @@ env.maxent <- Auto_maxent(presence_dat=op, predictors=env_vars, min_obs = 1000,
                            rm.dp = TRUE, 
                            name.mod = "Wallabi_Env", 
                            type_bk = "EnvBK", #[Random,BwData,BwData_inv,EnvBK]
-                           world_pol = co_pol, select_var = "NUMERICAL", 
+                           world_pol = co_pol, select_var = FALSE, 
                            sp_range=rX,
                            random_features = FALSE, beta.val = 7, 
-                           n_bk = 30000,
+                           n_bk = 10000,
                            # Model Selection
                            mod.select = TRUE, n.mods = 5, use.boyce = 0.5
                             )
@@ -233,11 +253,21 @@ Lu_route<-"./Data/Environmental variables/UK/Land_use" ; dir.create(Lu_route,rec
 Lu_vars<-c("trees", "grassland", "shrubs", "cropland", "built", "bare", "snow", "water", "wetland", "mangroves", "moss")
 lapply(Lu_vars,function(x) geodata::landcover(var=x,path=Lu_route))
 
-# Harmonize the spatial data
+# Harmonize the spatial data----
 env_vars <-  "./Data/Environmental variables/UK" %>% list.files(pattern = ".tif",recursive=TRUE,full.names = TRUE)
 resample.rast(y=env_vars,results.r = "./Data/Environmental variables/UK")
 
+# download the country boundaries----
+country_border <- geodata::gadm(country="gbr",path=td,level=0)
+country_border <- country_border %>% st_as_sf() %>% st_make_valid() %>% st_transform(crs = "EPSG:4326") 
 
+# load the new environmental information----
+new_dat <- "./Data/Environmental variables/UK/Resample_rast.tif" %>% rast()
+new_dat <- new_dat %>% mask(country_border %>% vect())
+
+pres.new.pred <- lapply(pres.inv.maxent$mods,predict,new_dat) %>% rast()
+
+# Run the predictions for the different models----
 
 
 
