@@ -14,9 +14,9 @@ Species Distribution Models (SDMs) are statistical tools used in ecology to pred
 
 SDMs are widely used in conservation, invasive species research, and ecological forecasting.
 
-### Load the AutoMaxent function and environment
+### Load the AutoMaxent function and its dependencies
 
-Rather than a formal package, **AutoMaxent** is a collection of functions that facilitate the general processing and generation of data for Species Distribution Modelling type analysis. Functions can be directly downloaded from this repository or loaded and store in **R** using the following code:
+Rather than a formal package, **AutoMaxent** is a collection of functions that facilitate the general processing and generation of data for Species Distribution Modelling type analysis. Functions can be directly downloaded from this repository or loaded and stored in **R** using the following code:
 
 ```{r}
 # 0. Load/install the needed packages
