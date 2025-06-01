@@ -105,7 +105,7 @@ Some libraries related to the `tydiverse` like `ggplot2` might fail to install s
 ```{r}
 # a. Load the packages
 path_home_r(new.lib) # MaxEnt library
-lapply(installed.packages()[,"Package"],require,character.only=TRUE) # Load the packages
+lapply(installed.packages()[,"Package"],require,lib.loc=new.lib,character.only=TRUE) # Load the packages
 
 # b. Reconfigure the package library
 path_home_r(old.lib)
