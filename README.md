@@ -2,9 +2,8 @@
 
 ### Species Distribution Models (SDMs)
 
-Species Distribution Models (SDMs) are statistical tools used in ecology to predict the distribution of species based on environmental variables. They help identify habitat suitability, assess conservation priorities, and analyse the effects of climate change on biodiversity. 
+Species Distribution Models (SDMs) are statistical tools used in ecology to predict the distribution of species based on environmental variables. They help identify habitat suitability, assess conservation priorities, and analyse the effects of climate change on biodiversity. This repository contains all the needed functions and scripts to run the full set of **Key steps** to run and test an SDM:
 
-#### Key Steps:
 1. **Data Collection** – Gather species occurrence records and environmental predictors.
 2. **Data Processing** – Clean, normalise, and address potential biases in spatial data.
 3. **Model Selection** – Choose an appropriate algorithm (e.g., MaxEnt, GLM, GAM, Random Forest).
