@@ -1,0 +1,458 @@
+---
+title: "1. DataPreparation"
+author: "Gonzalo Albaladejo-Robles"
+date: "2025-06-06"
+output: html_document
+---
+
+```{r setup, include=F,echo=F}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+-   Set up the environment
+
+```{r setup the environment,include=T,echo=T,results='hide'}
+rm(list=ls())
+gc()
+#.rs.restartR()
+options(java.parameters = "-Xmx5g") # increase the memory space for jave before loading any package
+options("rgdal_show_exportToProj4_warnings"="none") # Silence packages updates warnings
+
+setwd(dirname(rstudioapi::getSourceEditorContext()$path)) # Set the working directory to the directory in which the code is stored
+td<-tempdir()
+dir.create(td,showWarnings = FALSE)
+```
+
+-   Load the needed functions and
+
+```{r packages and functions, include=T,echo=T,message=F,warning=F,results='hide'}
+# 0. Load the packages----
+  list.of.packages<-c("sf","terra","tidyverse","geodata","rJava","viridis","httr","wesanderson")
+  
+  new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
+  if(length(new.packages)) install.packages(new.packages)
+  
+  lapply(list.of.packages,require,character.only=TRUE)
+  rm(list.of.packages,new.packages)
+
+# 0.1 Load the stable versios for the specific functions
+  lapply(installed.packages()[,"Package"],require,lib.loc="./Libraries/SDM_pipeline",character.only=TRUE)
+  rm(Packages,Pack.nmes)
+  
+# 0.1 Load the functions----
+  functions<-"./Functions" %>% list.files(recursive = FALSE,pattern = ".R$",full.names = TRUE)
+  lapply(functions,function(x) source(x))
+```
+
+### 1. Data collection
+
+We are going to use the `Download_gbif` function to get georeference presence records from the Global Biodiversity Information Facility ([**GBIF**](https://www.gbif.org/)). **GBIF** is made off multiple data sets, from scientific literature, to goverment assesments and monitoring programs, citicence science, and historical records. Since datasets are very heterogeous and cover a several years, they also contain different taxonomies. Therefore, before our query we need to perform a taxonomic macthing to retrieve all the known, or at least recorded, synonyms for the species. This process is carried out by the `retrive_syns` function. This function gave us the option to search the Integrated Taxonomic Information System ([**ITIS**](https://www.itis.gov/)) and [**IUCN RedList**](https://www.iucnredlist.org/), and optionally also **GBIF**, repositories and extract the list of synonyms and upstream taxonomic information (up to the level of Phylum) for the species or list of target species.
+
+Both the taxonomic revision and data gathering from **GBIF** can be executed individually by using the individual functions with their parameters or automatically using the `Spatial_spp` function. This function allow users to retrieve the taxonomic information and spatial records for a given specie, using only 5 parameters from which only two are mandatory (`sci_sp` and `key.IUCN`).
+
+a.  Configure some project parameters
+
+```{r Spatial CRS and prjection,echo=T,include=T}
+crs_p <- "EPSG:4326"
+sf_use_s2(F)
+```
+
+b.  Download the spatial and taxonomic information for the species By default `Spatial_spp` would create a `Data/sp_points` folder in the user working directory to store the downloaded spatial. The taxonomic information is store in the `Data/Sp_info` folder, also created by default by the function. Along the different scripts of this repostitory we are going to build multiple SDM for the red the red-necked wallaby ([*Macropus rufogriseus* or *Notamacropus rufogriseus*](), depending on which taxonomy we are using).
+
+Get some basic spatial information for the study area and species range. For the species range we are going to use the spatial information from the [IUCN RedList](https://www.iucnredlist.org/resources/spatial-data-download#:~:text=The%20IUCN%20Red%20List%20of%20Threatened%20Species%E2%84%A2%20contains%20global,groups%20and%20selected%20freshwater%20groups.).
+
+```{r Get some spatial data,echo=T,include=T,message=F,warning=F}
+# Get the general sampling area 
+country_border <- geodata::gadm(country="aus",path=td,level=0) 
+country_border <- country_border %>% st_as_sf() %>% st_make_valid() %>% st_transform(crs = crs_p)
+
+# World polygon
+terra_border <- geodata::world(resolution=3,level=0,path=td) 
+terra_border <- terra_border %>% st_as_sf() %>% st_make_valid() %>% st_transform(crs = crs_p)
+
+# Get the IUCN range data (this has been pre-downloaded and resize to fit GitHub requirements)
+rX <- st_read("./Data/IUCN_sp_Range" %>% list.files(pattern = ".shp",full.names = TRUE)) %>% st_transform(crs = crs_p)
+
+```
+
+Download the spatial records and taxonomy of the species We need to include a IUCN RedList API key for the taxonomic search and access the species general information in the IUCN servers. An API key can be obtain [here](https://api.iucnredlist.org/).
+
+```{r Download the spatial information, echo=T,include=T,message=T,warning=F}
+# Using the Spatial_spp function, we need to include a IUCN api key (for the taxonomic search).
+# Configure the IUCN API Key
+key.IUCN <- "WFMVb8zarBrK5cYVTys3BxNoGpj64VBMBjQQ" # "yourKey"
+
+# Get the spatial information
+tax_sp <- Spatial_spp(sci_sp = "Macropus rufogriseus",IUCN_api=key.IUCN,start_date = 2020) 
+
+```
+
+-   Check species tax
+
+```{r Check tax info, echo=T,include=T}
+# Print the taxonomic information
+print(tax_sp)
+```
+
+The algorithm was able to identified `r tax_sp$IUCN_N_syn` different synonyms. Therefore, for *`r sci_p`* the algorithm would check the **GBIF** servers for spatial data related with the species and its associated synonyms (*`r print(tax_sp$ITIS_syn %>% gsub(pattern=";",","),tax_sp$IUCN_syn %>% gsub(pattern=";",","))`*) and group all the observations under a single species binomial designation (the original name provided to `Spatial_spp`).
+
+c.  Load and clean the species spatial records
+
+Since **GBIF** points came from different sources and sampling methods we need to "clean" the data set in order to preserve only the spatial points with a high level spatial congruence. For this we are going to use the `Prepare_points` function which is a wrapper around the `CoordinateCleaner` that also allows some extra spatial filtering using user defined spatial information such as species ranges or study area boundaries.
+
+```{r Clean up the Gbif points, echo=T,include=T,warning=F}
+# Load the points
+sp_points <- list.files("./Data/sp_points",pattern = "Macropus rufogriseus.csv",full.names = TRUE) %>% read.csv()
+
+# Clean the spatial points using the CoordinateCleaner
+sp_clean <- Prepare_points(points_sp = sp_points,range_sp = rX) 
+```
+
+The original **GBIF** data had `r nrow(sp_points)` observations whereas the clean data set has `r nrow(sp_clean)`. From this final set of observations `r length(unique(paste(sp_clean$decimalLongitude,sp_clean$decimalLatitude)))` belong to unique geographical locations or points. We are going to save the clean records for the analysis.
+
+-   Export the Clean Data
+
+```{r Export the clean dada, echo=T,include=T,warning=F}
+# Export the processed points
+clean_dir <- paste(getwd(),"./Data/sp_points/Process",sep="/") 
+clean_dir %>% dir.create(recursive=T,showWarnings = F)
+
+sp_clean %>% write.csv(paste(clean_dir,"Macropus rufogriseus_C.csv",sep="/"))
+
+```
+
+d.  Display the species spatial information
+
+```{r Display the spatial information, echo=T,include=T,warning=F,message=F}
+# Transform the points information into spatial data
+o_points <- sp_points %>% st_as_sf(coords=c("decimalLongitude","decimalLatitude"),crs="EPSG:4326")
+c_points <- sp_clean %>% st_as_sf(coords=c("decimalLongitude","decimalLatitude"),crs="EPSG:4326")
+
+# Display the spatial information
+# Prepare the general geometry
+AUS_pols <- country_border %>% st_cast("POLYGON")
+AUS_pols <- AUS_pols[AUS_pols %>% st_intersects(st_union(c_points),sparse=F),]
+
+# General map (country + species range)
+  rX %>% st_geometry() %>% plot(col="purple" %>% adjustcolor(alpha.f = 0.5),mar=c(0,0,0,0)) 
+  AUS_pols %>% st_geometry() %>% plot(mar=c(0,0,0,0),col="grey88",add=T)
+  lines(rX,col="purple",lwd=1.2,lty=3)
+
+# Original records
+  o_points %>% st_geometry() %>% plot(add=T,col="skyblue" %>% adjustcolor(alpha.f = 0.25),pch=19,cex=0.5)
+ 
+# Clean up records
+  c_points %>% st_geometry() %>% plot(add=T,col="tomato" %>% adjustcolor(alpha.f = 0.25),pch=19,cex=0.5)
+  
+  mtext(side=1,adj=0,"Distribution of\npresence records\nfor the Red-necked\nWallabi in Continental\nAustralia")
+  legend("topright",title="Legend",legend=c("Species Range","Raw records","Clean records"), pch=c(NA,19,19),lty=c(3,NA,NA),lwd=1.2,cex=0.75,col=c("purple","skyblue","tomato"),bty="n")
+  
+```
+
+e. Preparing background and pseudo-absence data
+
+Different SDM methods require distinct records to compare against the presence data. Presence only methods call these counter factual observations **background** records. The objective of the background data is to extract a representation of the environmental information present within our study are or species range. In the case of the presence absence SDM methods, they rely on the differences between areas in which the species have been recorded and others in which the species has not been detected despite monitoring. Absence data is hard to obtain, unless we have total control on our target species survey/monitoring. For most species only presence data is available. Due to this presence absence methods usually rely on **pseudo-absence** records. This records can be created following some rules to mimic the distribution of "true" absences.
+
+- Generating background information using the `backgroundPOINTS` function. This function is part of the **AutoMaxent** repository so be sure to run the `0. Prepare_environment.R` script before this code.
+
+```{r Load the needed functions for the Analysis, echo=T,include=F,message=F,warning=F}
+  # Load the stable versios for the specific functions
+    lapply(installed.packages(lib.loc="./Libraries/AutoMaxent")[,"Package"],require,lib.loc="./Libraries/AutoMaxent",character.only=TRUE)
+  
+  # Load the BackgroundPOINTS function
+  MaxEnt_Functions <- "./Functions/AutoMaxent" %>% list.files(pattern="BackgroundPOINTS.R",full.names = T)
+  lapply(MaxEnt_Functions, function(s) source(s))
+
+```
+
+```{r Generate background data, echo=T,include=T,message=T,warning=F}
+# A random distribution of points
+r_bk <- backgroundPOINTS(presence=c_points, # Distribution points of the species
+                 background_n = 10000, # Number of background points
+                 TrainTest = 1, # Proportion of data used for the testing and training of the models
+                 range_samp = AUS_pols, # Range information of species
+                 weights.p="Random" # "Random","BwData","BwData_inv"
+                 )$Train
+
+# Base on the density of distribution points
+r_bw <- backgroundPOINTS(presence=c_points, # Distribution points of the species
+                 background_n = 10000, # Number of background points
+                 TrainTest = 1, # Proportion of data used for the testing and training of the models
+                 range_samp = AUS_pols, # Range information of species
+                 weights.p="BwData")$Train
+
+# Base on the density of distribution points
+r_binv <- backgroundPOINTS(presence=c_points, # Distribution points of the species
+                 background_n = 10000, # Number of background points
+                 TrainTest = 1, # Proportion of data used for the testing and training of the models
+                 range_samp = AUS_pols, # Range information of species
+                 weights.p="BwData_inv")$Train
+
+# Store the points
+background.p <- list(Random=r_bk,Weighted=r_bw,InvWeigthed=r_binv)
+
+```
+
+```{r Display the background data, echo=F,inclde=T,warning=F,message=F,fig.cap="Background point distribution"}
+# Display the spatial information
+par(mfrow=c(2,2),mar=c(0,2.5,2.5,0))
+
+plot(AUS_pols %>% st_geometry(),col="grey88")
+plot(rX %>% st_geometry ,col="purple",lty=3,lwd=1.2,add=T)
+mtext(side=3,adj=0,"Study area and\nspecies ranges",font=2)
+
+
+for(i in names(background.p)){
+  plot(AUS_pols %>% st_geometry(),col="grey88")
+  plot(rX %>% st_geometry ,col="purple",lty=3,lwd=1.2,add=T)
+  
+  points(background.p[[i]][sample(1:1000,500),],pch=19,col="tomato" %>% adjustcolor(alpha.f = 0.25),cex=0.5)
+  mtext(side=3,adj=0,i,font=2)
+  
+  }
+
+```
+
+- Generating pseudo-absence information using the `backgroundPOINTS` function and a custom polygon
+
+```{r}
+# Configure the sampling area to produce the pseudo-absence data
+p.exclusion <- c_points %>% st_buffer(dist=0.5) %>% st_union() # Add a buffer around the points and fuse the geometries to create an exclusion area
+
+study.area <- st_difference(AUS_pols,p.exclusion) %>% st_geometry()
+
+# Create the psudo-absence data
+# a. Random records
+p.random <- backgroundPOINTS(presence=c_points, # Distribution points of the species
+                 background_n = 10000, # Number of background points
+                 TrainTest = 1, # Proportion of data used for the testing and training of the models
+                 range_samp = study.area, # Range information of species
+                 weights.p="Random")$Train
+
+# b. Presence weigthing
+p.bw <- backgroundPOINTS(presence=c_points, # Distribution points of the species
+                 background_n = 10000, # Number of background points
+                 TrainTest = 1, # Proportion of data used for the testing and training of the models
+                 range_samp = study.area, # Range information of species
+                 weights.p="BwData")$Train
+
+# c. Random records
+p_binv <- backgroundPOINTS(presence=c_points, # Distribution points of the species
+                 background_n = 10000, # Number of background points
+                 TrainTest = 1, # Proportion of data used for the testing and training of the models
+                 range_samp = study.area, # Range information of species
+                 weights.p="BwData_inv")$Train
+
+# Store the points
+pseudo.p <- list(Random=p.random,Weighted=p.bw,InvWeigthed=p_binv)
+
+```
+
+```{r Display pseudo absences, echo=F,inclde=T,warning=F,message=F}
+# Display the spatial information
+par(mfrow=c(2,2),mar=c(0,2.5,2.5,0))
+
+plot(AUS_pols %>% st_geometry(),col="white")
+plot(rX %>% st_geometry ,col="skyblue" %>% adjustcolor(alpha.f = 0.25),lty=3,lwd=1.2,add=T)
+plot(study.area %>% st_geometry ,col="gold" %>% adjustcolor(alpha.f = 0.25),lty=3,lwd=1.2,add=T)
+mtext(side=3,adj=0,"Study area and\nspecies ranges and\nsampling area",font=2,cex=0.75,line=-2)
+legend("bottomleft",legend=c("Species range","Sampling area"),pch=15,col=c("skyblue","gold"),bty="n")
+
+for(i in names(pseudo.p )){
+  plot(AUS_pols %>% st_geometry(),col="grey90")
+  plot(rX %>% st_geometry ,col="skyblue" %>% adjustcolor(alpha.f = 0.25),lty=3,lwd=1.2,add=T)
+  
+  points(pseudo.p[[i]][sample(1:1000,500),],pch=19,col="tomato" %>% adjustcolor(alpha.f = 0.25),cex=0.5)
+  mtext(side=3,adj=0,i,font=2)
+  
+  }
+
+```
+
+-   Export the point data
+
+```{r Export the background and absence data, echo=T, include=T, message=T, warning=F}
+# We are going to use the same sp_info folder
+p.route <- "./Data/sp_points/Process/Contrast_points" ; p.route %>% dir.create(showWarnings = FALSE, recursive = T)
+
+st_write(study.area,paste(p.route,"Contrast_geopackage.gpkg",sep="/"),layer="Sampling_area_PseudoAb")
+
+# Export the pseudo-absence and background data to a common geopackage
+# Pseudo-absence
+for(i in names(pseudo.p)){ 
+  st_write(pseudo.p[[i]],paste(p.route,"Contrast_geopackage.gpkg",sep="/"),layer=paste0("Pseudo_",i))
+}
+
+# Background records
+for(i in names(background.p)){ 
+  st_write(background.p[[i]],paste(p.route,"Contrast_geopackage.gpkg",sep="/"),layer=paste0("Background_",i))
+}
+
+```
+
+## 2. Download environmental data----
+
+The selection and distribution of environmental gradients is going to have a direct effect on SDM fit, performance, and ecological relevance. In this example we are going to model the potential distribution of the red-necked Wallabi with a few additions to approach the specis realize niche. Therefore we are going to download climatic data along with some land-cover information.
+
+a.   Download climatic data from (WorldClim)
+
+```{r BioclimData, echo=T, include=T}
+# We want this to be relatively fast, so lets take the 10 sqr km resolution and limit the data gathering to the UK and Australia
+bio_clim <- "./Data/Environmental variables/BioClim" ; dir.create(bio_clim,recursive = TRUE,showWarnings = FALSE) 
+
+lapply(c("AUS","GBR"), function(x) 
+  geodata::worldclim_country(country = x,res=0.5,path=bio_clim,var="bio"))
+
+
+```
+
+b.  Download some land cover data form the European Space Agency land_use harmonization project (LH1)[https://climate.esa.int/en/projects/land-cover/data/]
+
+  We are going to focus on a limited set of (plant functional types)[https://essd.copernicus.org/articles/15/1465/2023/essd-15-1465-2023-discussion.html] in order to simplify the process. Ideally, for an exaustive SDM model, we would conduct our variable selection process base on the ecology of the species and the spatio temporal requirements of our study. This takes some more time since the data is high-res.
+
+```{r Land cover data, echo=T, include=T}
+# 3.2 Prepare some land-use information (in this case we are going to use the land-use from the Land-Use Harmonization project, LH1)----
+Lu_route<-"./Data/Environmental variables/Land_use" 
+dir.create(Lu_route,recursive = TRUE,showWarnings = FALSE)
+
+Lu_vars<-c("trees", "grassland", "shrubs", "cropland", "bare") 
+lapply(Lu_vars,function(x) geodata::landcover(var=x,path=Lu_route))
+
+```
+
+c.   Check the environmental information
+
+```{r Display Clim and LU data, echo=T, include=T, warning=F, message=F}
+# Load the raster data and check its distribution
+# Bioclim
+BioClim_routes <-"./Data/Environmental variables/BioClim" %>% list.files(pattern=".tif$",recursive=T,full.names = TRUE)
+
+# Land-use
+ESA_lh_routes <- "./Data/Environmental variables/Land_use" %>% list.files(pattern=".tif$",recursive=T,full.names = TRUE)
+
+Clim<- BioClim_routes[1] %>% rast() 
+Lu <- ESA_lh_routes[1] %>% rast()
+
+par(mfrow=c(1,2))
+Clim[[1]] %>% crop(AUS_pols %>% vect())  %>% mask(AUS_pols %>% vect()) %>% plot(col=viridis::inferno(250),mar=c(0,2.5,0,0),axes=F,plg=list(x="bottom",size=0.65),main="Climate")
+
+Lu[[1]] %>% crop(AUS_pols %>% vect()) %>% mask(AUS_pols %>% vect()) %>% plot(col=viridis::cividis(250),mar=c(0,2.5,0,0),axes=F,plg=list(x="bottom",size=0.65),main="Land Use")
+
+# Layer parameters
+Lu[[1]] %>% crs() ; Lu[[1]] %>% ext() ; Lu[[1]] %>% res()
+Clim[[1]] %>% crs() ; Clim[[1]] %>% ext() ; Clim[[1]] %>% res()
+
+```
+
+-   As we can see, the resolutions, extensions and spatial configurations of the environmental spatial information are different for the two datasets. In order to feed this information to a model we need, ideally, to harmonize the spatial informaiton to single CRS, extent, resolution, and data structure.
+
+d. Harmonize spatial information
+  Using the `resample.rast` function we can automatically make all raster files compatible with each other or we can provide a raster template to transform all the raster layers to the same format.
+
+```{r Resample Raster files, echo=T, include=T, message=F, warning=F}
+# Harmonize all the raster layer using the most common paramters
+env_vars_AUS <- c(BioClim_routes[1],ESA_lh_routes) # We need to gather the 
+env_vars_GBR <- c(BioClim_routes[2],ESA_lh_routes) # We need to gather the 
+
+# Harmonize the data
+resample.rast(x=NULL,y=env_vars_AUS,results.r="./Data/Environmental variables/Processed/AUS") # adapt and export the data
+resample.rast(x=NULL,y=env_vars_GBR,results.r="./Data/Environmental variables/Processed/GBR") # adapt and export the data
+
+```
+
+e.    Display the spatial information
+  
+  Bioclimatic data
+
+```{r prepare some reference polygons, echo=F,include=F,message=F, warning=F}
+# Make a continuous grid
+hexa <- AUS_pols %>% st_union() %>% st_make_grid(cellsize=6,square=F,crs=crs(AUS_pols))
+hexa <- hexa[hexa %>% st_intersects(AUS_pols %>% st_union(),sparse=F) %>% unlist()]
+
+# Transformt the spatial information
+hexa_sfc <- do.call(st_sfc, hexa)
+
+# Set CRS to match the circle
+hexa_sfc <- st_set_crs(hexa_sfc, crs(AUS_pols))
+
+# set.seed(651)
+# index <- sample(1:length(hexa_sfc),10)
+# hexa_sfc <- hexa_sfc[index]
+
+# Load the environmental data
+r_env <- "./Data/Environmental variables/Processed"  %>% list.files(pattern=".tif$",recursive = T,full.names = T)
+r_env <- r_env[1] %>% rast()
+
+var_list <- names(r_env)#[1:length(hexa_sfc)]
+
+# Create the different color ramps
+x.col <- lapply(wes_palettes,function(x) x[c(1,length(x))])
+color_ramp <-lapply(x.col, function(x){ fun.c <- colorRampPalette(c("black",x))
+                                  return(fun.c(250))})                              
+# Plot the information
+par(mar=c(0,0,0,0))
+plot(AUS_pols %>% st_geometry())
+
+for(i in 1:ifelse(length(hexa_sfc)>length(var_list),length(var_list),length(hexa_sfc))){
+  r_env[[var_list[i]]] %>% mask(hexa_sfc[i] %>% vect()) %>% plot(add=T,col=color_ramp[[i]],legend=F,alpha=0.5)
+}
+
+```
+
+f.    Land-use information
+
+
+```{r Export Session Info,echo=F,include=F}
+library(sf)
+
+# Define center point
+circle_center <- st_sfc(st_point(c(5, 2.3)), crs = 4326)  # Example centroid at (5,5)
+
+# Create circle
+circle <- st_buffer(circle_center, dist = 1)
+
+# Number of segments
+n_segments <- 6
+angles <- seq(0, 2*pi, length.out = n_segments + 1)
+
+# Extract centroid coordinates
+centroid_coords <- st_coordinates(circle_center)[1, ]
+
+# Create sector boundary polygons centered on the circle centroid
+segment_polygons <- lapply(seq_len(n_segments), function(i) {
+  st_polygon(list(rbind(
+    centroid_coords,  # Use the calculated centroid
+    centroid_coords + c(cos(angles[i]), sin(angles[i])),  # Start edge
+    centroid_coords + c(cos(angles[i+1]), sin(angles[i+1])),  # End edge
+    centroid_coords   # Closing back to centroid
+  )) )
+})
+
+# Convert list to sfc object properly
+pie_chart_sfc <- do.call(st_sfc, segment_polygons)
+
+# Set CRS to match the circle
+pie_chart_sfc <- st_set_crs(pie_chart_sfc, 4326)
+
+# Create sf object with ID column
+pie_chart <- st_sf(id = seq_len(n_segments), geometry = pie_chart_sfc)
+
+# Plot both the circle and pie chart together
+plot(circle, col = NA, border = "black", lwd = 2)
+plot(pie_chart$geometry, add = TRUE, col = rainbow(n_segments))
+
+
+
+```
+
+
+
+
+
+
+
+rX %\>% st_geometry() %\>% plot(col="tomato" %\>% adjustcolor(alpha.f = 0.35),add=TRUE,alpha=0.5,border="tomato3") plot(co_pol %\>% st_geometry(),add=TRUE) plot(op %\>% st_geometry(),add=TRUE,pch=19,cex=0.15,col="firebrick4") \`\`\`
+
+\# mtext(side=3,adj=0,"Native distribution of Macropus rufogriseus",font=2,cex=1,xpd=TRUE)
+
+dev.off()

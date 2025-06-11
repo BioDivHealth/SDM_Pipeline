@@ -1,5 +1,5 @@
 # Super Raster processing code!   
-resample.rast<-function(x,# Reference raster (should be a spatrast object or matrix)
+resample.rast<-function(x=NULL,# Reference raster (should be a spatrast object or matrix)
                         res=NULL, # If x is missing we can built the reference raster using the resolution (res), extent(ex) and crs (crs.r)
                         ex=NULL, # if x is a matrix, the extent of the raster must be specified, by default it takes the value of the whole globe
                         crs.r=NULL, # Coordinate reference system, default WGS84 (lat~lon) # "+proj=longlat +datum=WGS84 +no_defs +ellps=WGS84 +towgs84=0,0,0"
@@ -34,7 +34,7 @@ resample.rast<-function(x,# Reference raster (should be a spatrast object or mat
   if(!dir.exists(Tmp_dir)){dir.create(Tmp_dir)}
     
   # b. Reference raster, loaded or create it----
-  if(missing(x)|is.null(x)){
+  if(missing(x)| is.null(x)){
     if(TRUE %in% lapply(list(crs.r,ex,crs.r),is.null)){
       print("Missing key components to build the reference raster, sampling the layers to select the best fit!")
     
