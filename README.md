@@ -56,7 +56,7 @@ sp_points<- list.files("./Data/sp_points",pattern = "Macropus rufogriseus.csv",f
   MyRoute <- paste(getwd(),"AutoMaxent",sep="/")
   
   for(i in 1:nrow(file_path)){
-    write_lines(content(GET(paste0(raw_route,file_path$folder[i],file_path$filename[i]))),
+    write_lines(content(GET(paste(raw_route,file_path$folder[i],file_path$filename[I],sep="/"))),
                 paste(MyRoute,file_path$filename[i],sep="/"))
   }
 
