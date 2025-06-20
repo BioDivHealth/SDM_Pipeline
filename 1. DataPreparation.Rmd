@@ -30,18 +30,15 @@ dir.create(td,showWarnings = FALSE)
   list.of.packages<-c("sf","terra","tidyverse","geodata","rJava","viridis","httr","wesanderson")
   
   new.packages <- list.of.packages[!(list.of.packages %in% installed.packages()[,"Package"])]
-  if(length(new.packages)) install.packages(new.packages)
-  
-  lapply(list.of.packages,require,character.only=TRUE)
-  rm(list.of.packages,new.packages)
+if(length(new.packages)) install.packages(new.packages)
 
-# 0.1 Load the stable versios for the specific functions
-  lapply(installed.packages()[,"Package"],require,lib.loc="./Libraries/SDM_pipeline",character.only=TRUE)
-  rm(Packages,Pack.nmes)
-  
-# 0.1 Load the functions----
+lapply(list.of.packages,require,character.only=TRUE)
+rm(list.of.packages,new.packages)
+
+# 0.1 Load the functions to run the analysis ----
   functions<-"./Functions" %>% list.files(recursive = FALSE,pattern = ".R$",full.names = TRUE)
   lapply(functions,function(x) source(x))
+
 ```
 
 ### 1. Data collection
@@ -118,6 +115,9 @@ clean_dir <- paste(getwd(),"./Data/sp_points/Process",sep="/")
 clean_dir %>% dir.create(recursive=T,showWarnings = F)
 
 sp_clean %>% write.csv(paste(clean_dir,"Macropus rufogriseus_C.csv",sep="/"))
+
+# Load the data from the folder
+sp_clean <- clean_dir %>% list.files(pattern = "Macropus rufogriseus_C.csv",full.names = T) %>% read.csv()
 
 ```
 
@@ -275,17 +275,17 @@ for(i in names(pseudo.p )){
 # We are going to use the same sp_info folder
 p.route <- "./Data/sp_points/Process/Contrast_points" ; p.route %>% dir.create(showWarnings = FALSE, recursive = T)
 
-st_write(study.area,paste(p.route,"Contrast_geopackage.gpkg",sep="/"),layer="Sampling_area_PseudoAb")
+st_write(study.area,paste(p.route,"Contrast_geopackage.gpkg",sep="/"),layer="Sampling_area_PseudoAb",append=F)
 
 # Export the pseudo-absence and background data to a common geopackage
 # Pseudo-absence
 for(i in names(pseudo.p)){ 
-  st_write(pseudo.p[[i]],paste(p.route,"Contrast_geopackage.gpkg",sep="/"),layer=paste0("Pseudo_",i))
+  st_write(pseudo.p[[i]],paste(p.route,"Contrast_geopackage.gpkg",sep="/"),layer=paste0("Pseudo_",i),append=F)
 }
 
 # Background records
 for(i in names(background.p)){ 
-  st_write(background.p[[i]],paste(p.route,"Contrast_geopackage.gpkg",sep="/"),layer=paste0("Background_",i))
+  st_write(background.p[[i]],paste(p.route,"Contrast_geopackage.gpkg",sep="/"),layer=paste0("Background_",i),append=F)
 }
 
 ```
@@ -361,45 +361,62 @@ resample.rast(x=NULL,y=env_vars_GBR,results.r="./Data/Environmental variables/Pr
 ```
 
 e.    Display the spatial information
-  
-  Bioclimatic data
+   
+   Bioclimatic data
 
 ```{r prepare some reference polygons, echo=F,include=F,message=F, warning=F}
 # Make a continuous grid
 hexa <- AUS_pols %>% st_union() %>% st_make_grid(cellsize=6,square=F,crs=crs(AUS_pols))
 hexa <- hexa[hexa %>% st_intersects(AUS_pols %>% st_union(),sparse=F) %>% unlist()]
 
+# plot(AUS_pols %>% st_geometry())
+# plot(hexa,add=T)
+
+hexa %>% st_area()
+hexa_clip <- hexa %>% st_intersection(AUS_pols %>% st_union())
+
+prop_area <- ((hexa_clip %>% st_area())/(hexa %>% st_area())) %>% as.numeric()
+
+hexa_clip <- hexa_clip[prop_area>=0.35] #%>% plot()
+hexa <- hexa[prop_area>=0.35] #%>% plot()
+
 # Transformt the spatial information
-hexa_sfc <- do.call(st_sfc, hexa)
+hexa <- do.call(st_sfc, hexa)
+hexa_clip <- do.call(st_sfc, hexa_clip)
 
 # Set CRS to match the circle
-hexa_sfc <- st_set_crs(hexa_sfc, crs(AUS_pols))
+hexa <- st_set_crs(hexa, crs(AUS_pols))
+hexa_clip <- st_set_crs(hexa_clip, crs(AUS_pols))
 
-# set.seed(651)
-# index <- sample(1:length(hexa_sfc),10)
-# hexa_sfc <- hexa_sfc[index]
-
-# Load the environmental data
+# Route to the environmental data
 r_env <- "./Data/Environmental variables/Processed"  %>% list.files(pattern=".tif$",recursive = T,full.names = T)
-r_env <- r_env[1] %>% rast()
 
+# Load the data for Australia
+r_env <- r_env[1] %>% rast()
 var_list <- names(r_env)#[1:length(hexa_sfc)]
 
-# Create the different color ramps
-x.col <- lapply(wes_palettes,function(x) x[c(1,length(x))])
+# Select a number of sectors to plot the environmental informaton
+nV <- ifelse(nlyr(r_env)>length(hexa_clip),length(hexa_clip),nlyr(r_env)) # number of variables to 
+indexH <- sample(1:length(hexa_clip),size=nV)
+
+hexa_plot <- hexa_clip[indexH]
+
+# Create the color ramps
+x.col <- c(lapply(wes_palettes,function(x) x[c(1,length(x))]),lapply(wes_palettes,function(x) x[c(2,length(x)-1)]))
+
 color_ramp <-lapply(x.col, function(x){ fun.c <- colorRampPalette(c("black",x))
-                                  return(fun.c(250))})                              
+                                  return(fun.c(250))})                    
+
 # Plot the information
 par(mar=c(0,0,0,0))
 plot(AUS_pols %>% st_geometry())
 
-for(i in 1:ifelse(length(hexa_sfc)>length(var_list),length(var_list),length(hexa_sfc))){
-  r_env[[var_list[i]]] %>% mask(hexa_sfc[i] %>% vect()) %>% plot(add=T,col=color_ramp[[i]],legend=F,alpha=0.5)
+for(i in 1:nV){
+  r_env[[var_list[i]]] %>% crop(hexa_plot[i] %>% vect()) %>% mask(hexa_plot[i] %>% vect()) %>% plot(add=T,col=color_ramp[[i]],legend=F,alpha=0.5,xpd=T)
 }
 
 ```
 
-f.    Land-use information
 
 
 ```{r Export Session Info,echo=F,include=F}
@@ -444,15 +461,3 @@ plot(pie_chart$geometry, add = TRUE, col = rainbow(n_segments))
 
 
 ```
-
-
-
-
-
-
-
-rX %\>% st_geometry() %\>% plot(col="tomato" %\>% adjustcolor(alpha.f = 0.35),add=TRUE,alpha=0.5,border="tomato3") plot(co_pol %\>% st_geometry(),add=TRUE) plot(op %\>% st_geometry(),add=TRUE,pch=19,cex=0.15,col="firebrick4") \`\`\`
-
-\# mtext(side=3,adj=0,"Native distribution of Macropus rufogriseus",font=2,cex=1,xpd=TRUE)
-
-dev.off()
