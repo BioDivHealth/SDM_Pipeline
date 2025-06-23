@@ -11,7 +11,8 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
 ){
   
   # 0. Packages and dependencies:
-  if(is.null(IUCN_api)) print("You need to provide a valid IUCN_api key")
+  if(is.null(IUCN_api)) stop(print("You need to provide a valid IUCN_api key"))
+  
   options(iucn_redlist_key=IUCN_api)
   
   list.of.packages<-c("tidyr","rredlist","taxize","data.table","stringr",
