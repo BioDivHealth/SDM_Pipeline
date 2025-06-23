@@ -200,7 +200,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
       
       while(is.null(Syn) && t_5 <= n_times){
         
-        try(Syn <- lapply(c(tsn_n$scientificName) ,function(x) synonyms(x,db="itis")),silent=T)
+        try(Syn <- lapply(c(tsn_n$scientificName) ,function(x) synonyms(x,db="itis",accepted=T)),silent=T)
         
         t_5 <- t_5 + 1
       }
@@ -237,7 +237,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
         } else {
       
         ITIS_N_syn <- length(Syn_n) # number of sp sinonims, Subsp excluded
-        ITIS_syn<-paste(Syn_n,collapse=";") # combine the names into a single string with all the sinonims
+        ITIS_syn <- paste(Syn_n,collapse=";") # combine the names into a single string with all the sinonims
       }
       
       # Get the upstream taxonomic information
@@ -248,7 +248,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
       t_13<-1
       
       while(is.null(q) && t_13 <= n_times){
-        try(q<-lapply(Syn_tsn,itis_acceptname,silent=TRUE) %>% rbindlist(),silent=T)
+        try( q <- lapply(Syn_tsn,itis_acceptname,silent=TRUE) %>% rbindlist(),silent=T)
             t_13 <- t_13 + 1
             
             # print(t_13)
