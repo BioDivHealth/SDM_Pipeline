@@ -201,7 +201,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
       
       while(is.null(Syn) && t_5 <= n_times){
         
-        try(Syn <- lapply(c(tsn_n$scientificName) ,function(x) synonyms(x,db="itis",accepted=T)),silent=T)
+        try(Syn <- lapply(c(tsn_n$scientificName) ,function(x) synonyms(x,db="itis",accepted=T,rows=1)),silent=T)
         
         t_5 <- t_5 + 1
       }
