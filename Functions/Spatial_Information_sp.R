@@ -145,7 +145,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   
   if (is.null(TSN[[1]])) { 
     
-    ITIS_Present<-"No"
+    ITIS_Present<-FALSE
     ITIS_id<-NA
     ITIS_name<-NA
     ITIS_is_valid<-NA
@@ -224,11 +224,18 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
         Syn_tsn <- lapply(Syn, function(x) extract_syns(x)$id) %>% unlist()
       
       # Remove the subspecies
-        index_x <- lapply(Syn_n,function(x) strsplit(x,split=" ") %>% unlist() %>% length()) %>% unlist() ==2
-        incex_c <- !duplicated(Syn_n)
+        if(is.null(Syn_n)){
+          Syn_n<-NA
+          Syn_tsn<-NA
         
-        Syn_n <- Syn_n[index_x & incex_c]
-        Syn_tsn <- Syn_tsn[index_x & incex_c]      
+        }else{
+          index_x <- lapply(Syn_n,function(x) strsplit(x,split=" ") %>% unlist() %>% length()) %>% unlist() ==2
+          incex_c <- !duplicated(Syn_n)
+          
+          Syn_n <- Syn_n[index_x & incex_c]
+          Syn_tsn <- Syn_tsn[index_x & incex_c]  
+        }
+        
       
       # Include the species 
     if (length(Syn_n)==0){
@@ -249,33 +256,49 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
       t_13<-1
       
       while(is.null(q) && t_13 <= n_times){
-        try( q <- lapply(Syn_tsn,itis_acceptname,silent=TRUE) %>% rbindlist(),silent=T)
+        try( q <- lapply(c(Syn_tsn,tsn$tsn),itis_acceptname,silent=TRUE) %>% rbindlist(),silent=T)
             t_13 <- t_13 + 1
-            
-            # print(t_13)
-      }
+          }
       
       # Remove the accepted sub-species and get the acepted name and tsn id
-      q <- q[lapply(q$acceptedname,function(x) strsplit(x,split=" ") %>% unlist() %>% length()) %>% unlist() ==2,]
+      if(is.null(q)){
+        ITIS_id <- NA
+        ITIS_name <- NA
+          
+      }else{
+        if(!is.na(q$acceptedname)){
+          q <- q[lapply(q$acceptedname,function(x) strsplit(x,split=" ") %>% unlist() %>% length()) %>% unlist() ==2,]
       
+        }
       ITIS_id <- unique(q$acceptedtsn) %>% paste(collapse=";")
       ITIS_name <- unique(q$acceptedname) %>% paste(collapse=";")
+      
+      }
       
       j<-NULL
       t_13<-1
       
-      while(is.null(j) && t_13 <= n_times){
+    if(!is.null(q)){
+        while(is.null(j) && t_13 <= n_times){
         
         try(j <- ITIS_id[1] %>% as.numeric() %>% itis_hierarchy(what="full"),silent=T)
         t_13 <- t_13 + 1
+        }
       }
       #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+    
+    if(is.null(j)){
+      ITIS_Phylum <- NA # Change from lower to upper chase
+      ITIS_Class <- NA
+      ITIS_Order <- NA
+      ITIS_Family <- NA
       
+    } else {   
       ITIS_Phylum <- toupper(as.character(j[j$rankname=="phylum",4])) # Change from lower to upper chase
       ITIS_Class <- toupper(as.character(j[j$rankname=="class",4]))
       ITIS_Order <- toupper(as.character(j[j$rankname=="order",4]))
       ITIS_Family <- toupper(as.character(j[j$rankname=="family",4]))
-      
+        }
     }
   }
   
@@ -287,10 +310,18 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   
   #   b.1. Get the basic data from the IUCN red list----
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-  # Check if the species is present in the IUCN
-  sp_list <- lapply(c(ITIS_data$ITIS_name,ITIS_data$ITIS_syn),strsplit,split=";") %>% unlist()
-  sp_list <- unique(c(spp.x,sp_list))
-
+  # Check if the species is present in the IUCN 
+  
+  if(ITIS_data$ITIS_Present){
+    # Using all the available names
+    sp_list <- lapply(c(ITIS_data$ITIS_name,ITIS_data$ITIS_syn),strsplit,split=";") %>% unlist()
+    sp_list <- unique(c(spp.x,sp_list))
+  
+  }else{
+    # Using the suplied name
+    sp_list <- unique(spp.x)
+  }
+  
   sp_long <- lapply(sp_list, function(x) strsplit(x,split=" ") %>% unlist())
   
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
