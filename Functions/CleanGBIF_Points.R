@@ -41,6 +41,10 @@ Prepare_points<-function(points_sp, # Gbif data output
     
      }
    
+   if(nrow(points_sp)==0){
+     return(NULL)
+     }else{
+   
    # b.1 Check the overlap of the data with the designated range information----
    if(!is.null(range_sp)){
       
@@ -71,7 +75,7 @@ Prepare_points<-function(points_sp, # Gbif data output
          }
 
    return(points_sp)
-
+  }
 }
 
 # End of the function
