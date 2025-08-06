@@ -54,10 +54,10 @@ sp_points<- list.files("./Data/sp_points",pattern = "Macropus rufogriseus.csv",f
 
 # 3. Configure the routes, download, and export scripts
   raw_route <- "https://raw.githubusercontent.com/BioDivHealth/AutoMaxent/refs/heads/main" #This is the raw route to the gitHub repository
-  MyRoute <- paste(getwd(),"AutoMaxent",sep="/")
+  MyRoute <- paste(getwd(),"AutoMaxent",sep="/") ; dir.create(MyRoute)
   
   for(i in 1:nrow(file_path)){
-    write_lines(content(GET(paste(raw_route,file_path$folder[i],file_path$filename[I],sep="/"))),
+    write_lines(content(GET(paste(raw_route,file_path$folder[i],file_path$filename[i],sep="/"))),
                 paste(MyRoute,file_path$filename[i],sep="/"))
   }
 
