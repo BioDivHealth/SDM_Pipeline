@@ -266,7 +266,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
         ITIS_name <- NA
           
       }else{
-        if(!is.na(q$acceptedname)){
+        if(!all(is.na(q$acceptedname))){
           q <- q[lapply(q$acceptedname,function(x) strsplit(x,split=" ") %>% unlist() %>% length()) %>% unlist() ==2,]
       
         }
