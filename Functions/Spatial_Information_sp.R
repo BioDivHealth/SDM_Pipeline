@@ -7,6 +7,7 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
                         t.route=paste(getwd(),"Data/Sp_info",sep="/"),
                         range_sp=NULL, # do we have a shapefile with the range of the species?
                         start_date=2015, # The initial date for the spatial query [the function would look from that date onwards till present date]
+                        end_date=NULL,
                         IUCN_api=NULL
 ){
   
@@ -37,6 +38,7 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
   # b. with the list of synomyns, dowload all the abailable spatial information
   Download_gbif(sp_list=y_sp, # (Character) List of species from which to dowload spatial information
                initial_date=start_date, # (Numeric/year) By default the function will dowload 500 records for each month of the year, from the year specified till present
+               end_date=end_date,
                exit_route=p.route, # (Character) Route to store the dowloaded information
                area=range_sp, # (character) Searches for occurrences inside a polygon in Well Known Text (WKT) format. A WKT shape written as either
                gadm_codes=NULL, # (character) The gadm id of the area occurrences are desired from. https://gadm.org/.
@@ -540,6 +542,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
 #
 Download_gbif<-function(sp_list, # (Character) List of species from which to dowload spatial information
                        initial_date, # (Numeric/year) By default the function will dowload 500 records for each month of the year, from the year specified till present
+                       end_date=NULL,
                        # n_cores=2, # (Numeric) Number of cores commited to the processing (only when sp_list>1)
                        exit_route, # (Character) Route to store the dowloaded information
                        area=NULL, # (character) Searches for occurrences inside a polygon in Well Known Text (WKT) format. A WKT shape written as either
@@ -552,8 +555,13 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
   library("rgbif")
   
   # Set the dates for the searching
+  if(is.null(end_date)){
   present_date<-Sys.time() %>% format("%Y") %>% as.numeric()
   years=c(initial_date:as.numeric(present_date))
+    }else{
+  years=c(initial_date:as.numeric(end_date))
+    }
+  
   
   # Create the output folder for the data
   if(!dir.exists(exit_route)){dir.create(exit_route,showWarnings = FALSE)}
@@ -673,3 +681,4 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
   }
   return("GBIF data downloaded") 
 }
+
