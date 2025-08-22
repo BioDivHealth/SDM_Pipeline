@@ -8,7 +8,8 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
                         range_sp=NULL, # do we have a shapefile with the range of the species?
                         start_date=2015, # The initial date for the spatial query [the function would look from that date onwards till present date]
                         end_date=NULL,
-                        IUCN_api=NULL
+                        IUCN_api=NULL,
+                        Gbif=FALSE
 ){
   
   # 0. Packages and dependencies:
@@ -29,7 +30,7 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
   p.route %>% dir.create(recursive=TRUE,showWarnings = FALSE)
   
   # a. Check species names and extract synonims information
-  y_tax <- retrieve_syns(spp_name=sci_sp,Gbif=FALSE,IUCN_api=IUCN_api)
+  y_tax <- retrieve_syns(spp_name=sci_sp,IUCN_api=IUCN_api,Gbif=Gbif)
   y_sp <- y_tax$Spp_syn
   
   t.route %>% dir.create(showWarnings = FALSE,recursive = TRUE)
@@ -58,7 +59,7 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
 retrieve_syns<-function(spp_name,   # [Character] The species name from which to collect taxonomic information
                         n_times=25,
                         IUCN_api=NULL,# [Numeric] Number of times the search is repeated until a data is found,default value = 1
-                        Gbif=FALSE  # [Logical] Should we check Gbif for a taxonomic macthing of the species
+                        Gbif=Gbif  # [Logical] Should we check Gbif for a taxonomic macthing of the species
 )
 {
   options(iucn_redlist_key=IUCN_api)
@@ -133,7 +134,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   
   # b.Use the corrected or original name to look for taxonomic data----
   #
-  # b.3. Get the basic data from the ITIS red list----
+  # b.3. Get the basic data from the ITIS ----
   # b.3.1 Get TSN a reference number that we are going to need to gather information from ITIS----
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
   TSN <- NULL
@@ -145,7 +146,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   }
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
   
-  if (is.null(TSN[[1]])) { 
+  if (is.null(TSN[[1]])| nrow(TSN[[1]])==0) { 
     
     ITIS_Present<-FALSE
     ITIS_id<-NA
@@ -310,20 +311,79 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
                         ITIS_Class,ITIS_Order,ITIS_Family)
   
   
+  # b.4 Get the data from GBIF----
+  # Should we retrieve synonim information from GBIF?
+  if(Gbif==TRUE){
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+    key_1 <- NULL
+    t_6 <- 1
+    
+    while(is.null(key_1) && t_6 <= n_times){
+      
+      try(key_1 <- get_gbifid_(sci=spp.x)[[1]],silent = TRUE) # get the taxon key
+      t_6 <- t_6 + 1
+    }
+    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+    
+    if (length(key_1)==0){
+      
+      GBIF_Present<-"No"
+      GBIF_id<-NA
+      
+      GBIF_name<-NA
+      
+      GBIF_Phylum<-NA
+      GBIF_Class<-NA
+      GBIF_Order<-NA
+      GBIF_Family<-NA
+      
+      GBIF_syn<-NA
+      GBIF_N_syn<-NA
+      
+    } else{
+      
+      GBIF_id<-paste(key_1[,colnames(key_1) %in% c("acceptedusagekey")] %>% unique(),collapse="-")
+      GBIF_name<-paste(unique(key_1[,colnames(key_1) %in% c("canonicalname")]),collapse="-")
+      GBIF_Present <- TRUE
+      
+      GBIF_Phylum<-toupper(paste(unique(key_1[,colnames(key_1) %in% c("phylum")] %>% unlist() %>% unique()),collapse="-"))
+      GBIF_Class<-toupper(paste(unique(key_1[,colnames(key_1) %in% c("class")] %>% unlist() %>% unique()),collapse="-"))
+      GBIF_Order<-toupper(paste(unique(key_1[,colnames(key_1) %in% c("order")] %>% unlist() %>% unique()),collapse="-"))
+      GBIF_Family<-toupper(paste(unique(key_1[,colnames(key_1) %in% c("family")] %>% unlist() %>% unique()),collapse="-"))
+      GBIF_syn<-paste(key_1[,colnames(key_1) %in% c("canonicalname","species")] %>% unlist() %>% unique(),collapse=";")
+      
+      GBIF_N_syn<-length(GBIF_syn %>% strsplit(split=";") %>% unlist())
+    }
+    
+    GBif_data<-data.frame(GBIF_Present,GBIF_id,GBIF_name,
+                          GBIF_N_syn,GBIF_syn,GBIF_Phylum,
+                          GBIF_Class,GBIF_Order,GBIF_Family)
+  }
+  
+  
   #   b.1. Get the basic data from the IUCN red list----
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
   # Check if the species is present in the IUCN 
+  sp_list <- unique(spp.x)
+  x1<-NULL
+  x2<-NULL
   
+  # Combine all the species to look for them in the IUCN
   if(ITIS_data$ITIS_Present){
     # Using all the available names
-    sp_list <- lapply(c(ITIS_data$ITIS_name,ITIS_data$ITIS_syn),strsplit,split=";") %>% unlist()
-    sp_list <- unique(c(spp.x,sp_list))
+    x1 <- lapply(c(ITIS_data$ITIS_name,ITIS_data$ITIS_syn),strsplit,split=";") %>% unlist()
+    x1 <- unique(c(spp.x,x1))
   
-  }else{
-    # Using the suplied name
-    sp_list <- unique(spp.x)
   }
   
+  if(Gbif){
+  if(GBif_data$GBIF_Present){
+    x2 <- lapply(c(GBif_data$GBIF_name,GBif_data$GBIF_syn),strsplit,split=";") %>% unlist()
+    x2 <- unique(c(spp.x,x2))
+    }
+  }
+  
+  sp_list <- c(sp_list,x1,x2) %>% unique()
   sp_long <- lapply(sp_list, function(x) strsplit(x,split=" ") %>% unlist())
   
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -412,101 +472,14 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
                         IUCN_Phylum,IUCN_Class,
                         IUCN_Order,IUCN_Family)
   
-  # Should we retrieve synonim information from GBIF?
-  if(Gbif==TRUE){
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-    key_1 <- NULL
-    t_6 <- 1
-    
-    while(is.null(key_1) && t_6 <= n_times){
-      
-      try(key_1 <- get_gbifid_(sci=spp.x)[[1]],silent = TRUE) # get the taxon key
-      t_6 <- t_6 + 1
-    }
-    #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
-    
-    if (length(key_1)==0){
-      
-      GBIF_Present<-"No"
-      GBIF_id<-NA
-      
-      GBIF_name<-NA
-      
-      GBIF_Phylum<-NA
-      GBIF_Class<-NA
-      GBIF_Order<-NA
-      GBIF_Family<-NA
-      
-      GBIF_syn<-NA
-      GBIF_N_syn<-NA
-      
-    } else{
-      
-      GBIF_id<-paste(key_1[key_1$status=="ACCEPTED" & key_1$matchtype=="EXACT",20],collapse="-")
-      GBIF_name<-paste(unique(key_1[key_1$specieskey==GBIF_id,13]),collapse="-")
-      
-      GBIF_Phylum<-toupper(paste(unique(key_1[key_1$specieskey==GBIF_id,9]),collapse="-"))
-      GBIF_Class<-toupper(paste(unique(key_1[key_1$specieskey==GBIF_id,22]),collapse="-"))
-      GBIF_Order<-toupper(paste(unique(key_1[key_1$specieskey==GBIF_id,10]),collapse="-"))
-      GBIF_Family<-toupper(paste(unique(key_1[key_1$specieskey==GBIF_id,11]),collapse="-"))
-      
-      if (is.na(GBIF_name)){
-        
-        GBIF_Present<-"No"
-        GBIF_id<-NA
-        
-        GBIF_name<-NA
-        
-        GBIF_Phylum<-NA
-        GBIF_Class<-NA
-        GBIF_Order<-NA
-        GBIF_Family<-NA
-        
-        GBIF_syn<-NA
-        GBIF_N_syn<-NA
-        
-      } 
-      
-      if (GBIF_name==""){
-        
-        GBIF_Present<-"No"
-        GBIF_id<-NA
-        
-        GBIF_name<-NA
-        
-        GBIF_Phylum<-NA
-        GBIF_Class<-NA
-        GBIF_Order<-NA
-        GBIF_Family<-NA
-        
-        GBIF_syn<-NA
-        GBIF_N_syn<-NA
-        
-      } else {
-        
-        GBIF_Present<-"Yes" 
-        GBIF_syn<-paste(key_1[key_1$status=="SYNONYM",13],collapse=";")
-        if(length(key_1[key_1$status=="SYNONYM",1])==0){
-          GBIF_N_syn<-NA
-        }else{
-          GBIF_N_syn<-length(key_1[key_1$status=="SYNONYM",1]) 
-        }
-      }
-    }
-    
-    GBif_data<-data.frame(GBIF_Present,GBIF_id,GBIF_name,
-                          GBIF_N_syn,GBIF_syn,GBIF_Phylum,
-                          GBIF_Class,GBIF_Order,GBIF_Family)
-  }
-  
   # C. Return the Taxonomic information
   if(Gbif==TRUE){
     Tax_dat<-cbind(Or_name=spp.x,IUCN_data,ITIS_data,GBif_data)
     Spp_syn<-c(spp.x,Tax_dat[,colnames(Tax_dat) %in% c("IUCN_name","IUCN_syn","ITIS_name",
-                                                       "ITIS_syn","GBIF_name","GBIF_syn")]) %>% paste(collapse = ";") %>% 
-      strsplit(split = ";") %>% unlist()
+                                                       "ITIS_syn","GBIF_syn")]) %>% paste(collapse = ";") %>% 
+      strsplit(split = ";") %>% unlist() %>% unique()
     
-    Spp_syn<-Spp_syn[-c(Spp_syn%>%grep(pattern = "NA"))]
+    Spp_syn<-Spp_syn[!c(Spp_syn %>% grepl(pattern = "NA"))]
     Spp_syn<-Spp_syn[!duplicated(Spp_syn)]
     
     return(list(Spp_syn=Spp_syn,
@@ -515,8 +488,8 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
                 TaxDat=Tax_dat))
   }else{
     Tax_dat <- cbind(Or_name=spp.x,IUCN_data,ITIS_data)
-    Spp_syn <- c(spp.x,Tax_dat[,colnames(Tax_dat) %in% c("IUCN_name","IUCN_syn","ITIS_name","ITIS_syn","GBIF_name","GBIF_syn")]) %>% 
-                paste(collapse = ";") %>% strsplit(split = ";") %>% unlist()
+    Spp_syn <- c(spp.x,Tax_dat[,colnames(Tax_dat) %in% c("IUCN_name","IUCN_syn","ITIS_name","ITIS_syn","GBIF_syn")]) %>% 
+                paste(collapse = ";") %>% strsplit(split = ";") %>% unlist() %>% unique()
     
     Spp_syn <- Spp_syn[!c(Spp_syn %>% grepl(pattern = "NA"))]
     Spp_syn <- Spp_syn[!duplicated(Spp_syn)]
