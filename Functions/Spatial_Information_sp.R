@@ -548,8 +548,8 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
         
         points <- NULL
         t_11 <- 1
-        while(is.null(points) && t_11 <= 1000) {
-          
+        while(is.null(points) && t_11 <= 100) {
+          Sys.sleep(1)
           points<-try(occ_search(scientificName =sp_list,
                                  hasCoordinate=TRUE,
                                  year=years[k],
@@ -605,8 +605,8 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
           points <- NULL
           t_11 <- 1
           
-          while(is.null(points) && t_11 <= 1000) {
-            
+          while(is.null(points) && t_11 <= 100) {
+            Sys.sleep(1)
             points<-try(occ_search(scientificName =sp,
                                    hasCoordinate=TRUE,
                                    year=years[k],
