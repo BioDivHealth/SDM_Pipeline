@@ -57,7 +57,7 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
 #
 
 retrieve_syns<-function(spp_name,   # [Character] The species name from which to collect taxonomic information
-                        n_times=25,
+                        n_times=5,
                         IUCN_api=NULL,# [Numeric] Number of times the search is repeated until a data is found,default value = 1
                         Gbif=Gbif  # [Logical] Should we check Gbif for a taxonomic macthing of the species
 )
@@ -140,11 +140,13 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   TSN <- NULL
   t_4 <- 1
   
-  while(is.null(TSN) && t_4 <= n_times){
+  while(is.null(TSN) && t_4 <= 5){ # n_times){ # Takes some time to retry the connection
     try(TSN <- get_tsn_(spp.x,searchtype = "scientific"),silent=T)
     t_4 <- t_4 + 1
   }
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+  
+  if(TSN %>% is.null() | class(TSN)!= "list") stop("ITIS Search is likely down!! Check https://itis.gov/ for more information")
   
   if (is.null(TSN[[1]])| nrow(TSN[[1]])==0) { 
     
@@ -654,4 +656,5 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
   }
   return("GBIF data downloaded") 
 }
+
 
