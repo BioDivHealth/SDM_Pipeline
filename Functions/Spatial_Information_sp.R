@@ -58,8 +58,9 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
 
 retrieve_syns<-function(spp_name,   # [Character] The species name from which to collect taxonomic information
                         n_times=5,
-                        IUCN_api=NULL,# [Numeric] Number of times the search is repeated until a data is found,default value = 1
-                        Gbif=Gbif  # [Logical] Should we check Gbif for a taxonomic macthing of the species
+                        IUCN_api=NULL,# [Numeric] Number of times the search is repeated until data is found, default value = 1
+                        Gbif=Gbif,  # [Logical] Should we check Gbif for a taxonomic matching of the species
+                        ITIS=ITIS # the ITIS server is not being maintained at the time, this might cause errors [set to FALSE for the time being] 
 )
 {
   options(iucn_redlist_key=IUCN_api)
@@ -135,6 +136,8 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   # b.Use the corrected or original name to look for taxonomic data----
   #
   # b.3. Get the basic data from the ITIS ----
+  if(ITIS){
+  
   # b.3.1 Get TSN a reference number that we are going to need to gather information from ITIS----
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
   TSN <- NULL
@@ -311,10 +314,21 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   ITIS_data<-data.frame(ITIS_Present,ITIS_is_valid,ITIS_id,ITIS_name,
                         ITIS_Phylum,ITIS_N_syn,ITIS_syn,
                         ITIS_Class,ITIS_Order,ITIS_Family)
-  
+  }else{
+    ITIS_data<-data.frame(ITIS_Present = "NOT INCLUDED",
+                          ITIS_is_valid = NA,
+                          ITIS_id = NA,
+                          ITIS_name = NA,
+                          ITIS_Phylum = NA,
+                          ITIS_N_syn = NA,
+                          ITIS_syn = NA,
+                          ITIS_Class = NA,
+                          ITIS_Order = NA,
+                          ITIS_Family = NA)
+    }
   
   # b.4 Get the data from GBIF----
-  # Should we retrieve synonim information from GBIF?
+  # Should we retrieve synonym information from GBIF?
   if(Gbif==TRUE){
     #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
     key_1 <- NULL
@@ -363,7 +377,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   }
   
   
-  #   b.1. Get the basic data from the IUCN red list----
+  #   b.1. Get the basic data from the IUCN Red List ----
   #~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
   # Check if the species is present in the IUCN 
   sp_list <- unique(spp.x)
