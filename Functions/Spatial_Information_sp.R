@@ -315,7 +315,7 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
                         ITIS_Phylum,ITIS_N_syn,ITIS_syn,
                         ITIS_Class,ITIS_Order,ITIS_Family)
   }else{
-    ITIS_data<-data.frame(ITIS_Present = "NOT INCLUDED",
+    ITIS_data<-data.frame(ITIS_Present = FALSE,
                           ITIS_is_valid = NA,
                           ITIS_id = NA,
                           ITIS_name = NA,
@@ -385,13 +385,13 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   x2<-NULL
   
   # Combine all the species to look for them in the IUCN
+                        if(ITIS){
   if(ITIS_data$ITIS_Present){
     # Using all the available names
     x1 <- lapply(c(ITIS_data$ITIS_name,ITIS_data$ITIS_syn),strsplit,split=";") %>% unlist()
     x1 <- unique(c(spp.x,x1))
-  
-  }
-  
+     }
+     
   if(Gbif){
   if(GBif_data$GBIF_Present){
     x2 <- lapply(c(GBif_data$GBIF_name,GBif_data$GBIF_syn),strsplit,split=";") %>% unlist()
