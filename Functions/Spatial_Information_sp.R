@@ -390,7 +390,8 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
     # Using all the available names
     x1 <- lapply(c(ITIS_data$ITIS_name,ITIS_data$ITIS_syn),strsplit,split=";") %>% unlist()
     x1 <- unique(c(spp.x,x1))
-     }
+    }
+  }
      
   if(Gbif){
   if(GBif_data$GBIF_Present){
