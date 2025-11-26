@@ -101,12 +101,8 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   
   while(is.null(correct_name) && t_11 <= n_times) {
     
-    try(correct_name<-gnr_resolve(sci =spp.x,
-                                  resolve_once = FALSE,
-                                  canonical=TRUE,
-                                  best_match_only = TRUE,
-                                  highestscore = TRUE),
-        silent = TRUE)
+    try(correct_name<-gna_verifier(names=spp.x)
+        ,silent = TRUE)
     t_11 <- t_11 + 1
   }
   rm(t_11)  
@@ -115,22 +111,22 @@ retrieve_syns<-function(spp_name,   # [Character] The species name from which to
   if (!is.null(correct_name)){
     if(nrow(correct_name)!=0){
       y.d<-cbind(spp.x,correct_name[,colnames(correct_name)%in%
-                                      c("data_source_title","score","matched_name2")]) #
+                                      c("dataSourceTitleShort","acceptedNameScore","matchedCanonicalFull")]) #
       
       names(y.d)[1]<-"or_name"
       
-      spp.x<-y.d$matched_name2  # Use the corrected name for the rest of taxnomic querys
+      spp.x<-y.d$matchedCanonicalFull  # Use the corrected name for the rest of taxnomic querys
       
-      ifelse(y.d$matched_name2==y.d$or_name,
+      ifelse(y.d$matchedCanonicalFull==y.d$or_name,
              y.d$Status<-"Correct",
              y.d$Status<-"Incorrect")
       
     }} else {
       y.d<-data.frame(or_name=spp.x,
-                      matched_name2=NA,
+                      matchedCanonicalFull=NA,
                       Status="Not_found",
-                      data_source_title=NA,
-                      score=NA)
+                      dataSourceTitleShort=NA,
+                      acceptedNameScore=NA)
     }
   
   # b.Use the corrected or original name to look for taxonomic data----
