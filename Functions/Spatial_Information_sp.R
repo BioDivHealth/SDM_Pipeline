@@ -9,7 +9,7 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
                         start_date=2015, # The initial date for the spatial query [the function would look from that date onwards till present date]
                         end_date=NULL,
                         IUCN_api=NULL,
-                        Gbif=FALSE
+                        Gbif_ind=FALSE
 ){
   
   # 0. Packages and dependencies:
@@ -30,7 +30,7 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
   p.route %>% dir.create(recursive=TRUE,showWarnings = FALSE)
   
   # a. Check species names and extract synonims information
-  y_tax <- retrieve_syns(spp_name=sci_sp,IUCN_api=IUCN_api,Gbif=Gbif)
+  y_tax <- retrieve_syns(spp_name=sci_sp,IUCN_api=IUCN_api,Gbif=Gbif_ind)
   y_sp <- y_tax$Spp_syn
   
   t.route %>% dir.create(showWarnings = FALSE,recursive = TRUE)
@@ -59,8 +59,8 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
 retrieve_syns<-function(spp_name,   # [Character] The species name from which to collect taxonomic information
                         n_times=5,
                         IUCN_api=NULL,# [Numeric] Number of times the search is repeated until data is found, default value = 1
-                        Gbif=Gbif,  # [Logical] Should we check Gbif for a taxonomic matching of the species
-                        ITIS=ITIS # the ITIS server is not being maintained at the time, this might cause errors [set to FALSE for the time being] 
+                        Gbif=Gbif_ind,  # [Logical] Should we check Gbif for a taxonomic matching of the species
+                        ITIS=TRUE # the ITIS server is not being maintained at the time, this might cause errors [set to FALSE for the time being] 
 )
 {
   options(iucn_redlist_key=IUCN_api)
