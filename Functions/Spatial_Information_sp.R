@@ -8,7 +8,8 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
                         range_sp=NULL, # do we have a shapefile with the range of the species?
                         start_date=2015, # The initial date for the spatial query [the function would look from that date onwards till present date]
                         end_date=NULL,
-                        IUCN_api=NULL
+                        IUCN_api=NULL,
+                        time_limit=NULL # The time limit for each iteration, in seconds
 ){
   
   # 0. Packages and dependencies:
@@ -43,7 +44,8 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
                area=range_sp, # (character) Searches for occurrences inside a polygon in Well Known Text (WKT) format. A WKT shape written as either
                gadm_codes=NULL, # (character) The gadm id of the area occurrences are desired from. https://gadm.org/.
                # locality=NULL, # If iterating around different polygons, the name of the regions or polygon
-               n_records=150000)
+               n_records=150000,
+               time_limit=time_limit)
   
   # Return the species taxonomy
   return(y_tax$TaxDat)
@@ -548,7 +550,8 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
                        area=NULL, # (character) Searches for occurrences inside a polygon in Well Known Text (WKT) format. A WKT shape written as either
                        gadm_codes=NULL, # (character) The gadm id of the area occurrences are desired from. https://gadm.org/.
                        # locality=NULL, # If iterating around different polygons, the name of the regions or polygon
-                       n_records=150000 # Maximun number of records to retrieve
+                       n_records=150000, # Maximun number of records to retrieve
+                       time_limit=NULL
 ){
   
   # Load the library
@@ -572,11 +575,12 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
       print(paste0("year=",k))
       
       for (j in 1:12){
+        t1 <- Sys.time()
         
         points <- NULL
         t_11 <- 1
         while(is.null(points) && t_11 <= 1000) {
-          
+          Sys.sleep(1)
           points<-try(occ_search(scientificName =sp_list,
                                  hasCoordinate=TRUE,
                                  year=years[k],
@@ -601,7 +605,13 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
           }}
         rm(points)
         print(paste(k,j,sep="-"))
-      }
+        
+      # Check the time
+        if(!is.null(time_limit)){
+          t2 <- Sys.time()
+          if((t2-t1) %>% as.numeric(units="secs")>time_limit) stop("Time limit per iteration reached!")
+          }
+        }
     }
     gc()
     
@@ -621,19 +631,19 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
     dir.create(Temp_tax,showWarnings = FALSE)
     
     for(f in 1:length(sp_list)){
-      t1<-Sys.time()
       sp<-sp_list[f]
       
       for (k in 1:length(years)){
         print(paste0("year=",k))
         
         for (j in 1:12){
+          t1 <- Sys.time()
           
           points <- NULL
           t_11 <- 1
           
           while(is.null(points) && t_11 <= 1000) {
-            
+            Sys.sleep(1)
             points<-try(occ_search(scientificName =sp,
                                    hasCoordinate=TRUE,
                                    year=years[k],
@@ -657,6 +667,12 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
             }}
           rm(points)
           print(paste(k,j,sep="-"))
+          
+          # Check the time
+          if(!is.null(time_limit)){
+            t2 <- Sys.time()
+            if((t2-t1) %>% as.numeric(units="secs")>time_limit) stop("Time limit per iteration reached!")
+          }
         }
       }
       gc()
