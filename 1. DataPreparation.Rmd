@@ -1,5 +1,5 @@
 ---
-title: "1. DataPreparation"
+title: "Spatial and environmental data preparation"
 author: "Gonzalo Albaladejo-Robles"
 date: "2025-06-06"
 output: html_document
@@ -25,7 +25,7 @@ dir.create(td,showWarnings = FALSE)
 
 -   Load the needed functions and
 
-```{r packages and functions, include=T,echo=T,message=F,warning=F,results='hide'}
+```{r packages and functions, include=T,echo=F,message=F,warning=F,results='hide'}
 # 0. Load the packages----
   list.of.packages<-c("sf","terra","tidyverse","geodata","rJava","viridis","httr","wesanderson")
   
@@ -74,13 +74,14 @@ rX <- st_read("./Data/IUCN_sp_Range" %>% list.files(pattern = ".shp",full.names 
 
 Download the spatial records and taxonomy of the species We need to include a IUCN RedList API key for the taxonomic search and access the species general information in the IUCN servers. An API key can be obtain [here](https://api.iucnredlist.org/).
 
-```{r Download the spatial information, echo=T,include=T,message=T,warning=F}
+```{r Download the spatial information, echo=F,include=T,message=T,warning=F}
 # Using the Spatial_spp function, we need to include a IUCN api key (for the taxonomic search).
 # Configure the IUCN API Key
 key.IUCN <- "WFMVb8zarBrK5cYVTys3BxNoGpj64VBMBjQQ" # "yourKey"
 
 # Get the spatial information
-tax_sp <- Spatial_spp(sci_sp = "Macropus rufogriseus",IUCN_api=key.IUCN,start_date = 2020) 
+spp_x <- "Macropus rufogriseus"
+tax_sp <- Spatial_spp(sci_sp = spp_x,IUCN_api=key.IUCN,start_date = 2020) 
 
 ```
 
@@ -91,7 +92,7 @@ tax_sp <- Spatial_spp(sci_sp = "Macropus rufogriseus",IUCN_api=key.IUCN,start_da
 print(tax_sp)
 ```
 
-The algorithm was able to identified `r tax_sp$IUCN_N_syn` different synonyms. Therefore, for *`r sci_p`* the algorithm would check the **GBIF** servers for spatial data related with the species and its associated synonyms (*`r print(tax_sp$ITIS_syn %>% gsub(pattern=";",","),tax_sp$IUCN_syn %>% gsub(pattern=";",","))`*) and group all the observations under a single species binomial designation (the original name provided to `Spatial_spp`).
+The algorithm was able to identified `r tax_sp$IUCN_N_syn` different synonyms. Therefore, for *`r spp_x`* the algorithm would check the **GBIF** servers for spatial data related with the species and its associated synonyms (*`r print(paste0(tax_sp$ITIS_syn %>% gsub(pattern=";",replacement=","),tax_sp$IUCN_syn %>% gsub(pattern=";",replacement=","),collapse=","))`*) and group all the observations under a single species binomial designation (the original name provided to `Spatial_spp`).
 
 c.  Load and clean the species spatial records
 
@@ -337,7 +338,10 @@ par(mfrow=c(1,2))
 Clim[[1]] %>% crop(AUS_pols %>% vect())  %>% mask(AUS_pols %>% vect()) %>% plot(col=viridis::inferno(250),mar=c(0,2.5,0,0),axes=F,plg=list(x="bottom",size=0.65),main="Climate")
 
 Lu[[1]] %>% crop(AUS_pols %>% vect()) %>% mask(AUS_pols %>% vect()) %>% plot(col=viridis::cividis(250),mar=c(0,2.5,0,0),axes=F,plg=list(x="bottom",size=0.65),main="Land Use")
+```
 
+-   Layer spatial parameters
+```{r}
 # Layer parameters
 Lu[[1]] %>% crs() ; Lu[[1]] %>% ext() ; Lu[[1]] %>% res()
 Clim[[1]] %>% crs() ; Clim[[1]] %>% ext() ; Clim[[1]] %>% res()
@@ -360,11 +364,11 @@ resample.rast(x=NULL,y=env_vars_GBR,results.r="./Data/Environmental variables/Pr
 
 ```
 
-e.    Display the spatial information
+e. Display the spatial information
    
    Bioclimatic data
 
-```{r prepare some reference polygons, echo=F,include=F,message=F, warning=F}
+```{r prepare some reference polygons, echo=F,include=T,message=F, warning=F}
 # Make a continuous grid
 hexa <- AUS_pols %>% st_union() %>% st_make_grid(cellsize=6,square=F,crs=crs(AUS_pols))
 hexa <- hexa[hexa %>% st_intersects(AUS_pols %>% st_union(),sparse=F) %>% unlist()]
@@ -416,7 +420,6 @@ for(i in 1:nV){
 }
 
 ```
-
 
 
 ```{r Export Session Info,echo=F,include=F}
