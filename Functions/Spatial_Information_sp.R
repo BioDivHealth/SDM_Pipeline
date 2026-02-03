@@ -9,11 +9,8 @@ Spatial_spp <- function(sci_sp, # Scientific name of the species from which we w
                         start_date=2015, # The initial date for the spatial query [the function would look from that date onwards till present date]
                         end_date=NULL,
                         IUCN_api=NULL,
-<<<<<<< HEAD
-                        time_limit=NULL # The time limit for each iteration, in seconds
-=======
+                        time_limit=NULL, # The time limit for each iteration, in seconds
                         Gbif_ind=FALSE
->>>>>>> 965ccbf098c2b7985e660b0423ed647d92112ce8
 ){
   
   # 0. Packages and dependencies:
@@ -568,11 +565,8 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
         
         points <- NULL
         t_11 <- 1
-<<<<<<< HEAD
-        while(is.null(points) && t_11 <= 1000) {
-=======
+
         while(is.null(points) && t_11 <= 50) {
->>>>>>> 965ccbf098c2b7985e660b0423ed647d92112ce8
           Sys.sleep(1)
           points<-try(occ_search(scientificName =sp_list,
                                  hasCoordinate=TRUE,
@@ -635,11 +629,7 @@ Download_gbif<-function(sp_list, # (Character) List of species from which to dow
           points <- NULL
           t_11 <- 1
           
-<<<<<<< HEAD
-          while(is.null(points) && t_11 <= 1000) {
-=======
           while(is.null(points) && t_11 <= 50) {
->>>>>>> 965ccbf098c2b7985e660b0423ed647d92112ce8
             Sys.sleep(1)
             points<-try(occ_search(scientificName =sp,
                                    hasCoordinate=TRUE,
